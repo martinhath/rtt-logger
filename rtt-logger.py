@@ -19,7 +19,6 @@ def _write(handle, s, device):
     # May not be needed
     if not handle in locks.keys():
         locks[handle] = threading.Lock()
-        print('inserting lock for handle {}'.format(handle))
     lock = locks[handle]
     with lock:
         handle.write(device)
@@ -61,8 +60,6 @@ class nRFMultiLogger(object):
         time.sleep(1.1)
 
         self._nrfs.append(nrf)
-
-        # print("Device %u %s"%(int(device), str()))
 
         if not nrf.rtt_is_control_block_found():
             error('Could not find control block for devie {}.'.format(device))
