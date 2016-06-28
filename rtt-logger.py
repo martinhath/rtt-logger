@@ -5,6 +5,7 @@ from sys import exit
 from pynrfjprog.API import *
 from pynrfjprog.MultiAPI import *
 
+from sys import stdout, stderr
 
 # put this in between the fields when outputting a message
 MSG_DELIM = "\t"
@@ -12,24 +13,29 @@ MSG_DELIM = "\t"
 # replace it with this one
 MSG_DELIM_REPLACE = "\\t"
 
-stdout_lock = threading.Lock()
-from sys import stdout, stderr
-def write(s):
+locks = {}
+def _write(handle, s, device):
     # lock, in order to ensure that only one thread is writing at a time.
     # May not be needed
-    stdout_lock.acquire()
-    stdout.write(s)
-    stdout.write('\n')
-    stdout.flush()
-    stdout_lock.release()
+    if not handle in locks.keys():
+        locks[handle] = threading.Lock()
+        print('inserting lock for handle {}'.format(handle))
+    lock = locks[handle]
+    with lock:
+        handle.write(device)
+        handle.write('\t')
+        handle.write(s)
+        if s[-1] != '\n':
+            handle.write('\n')
+        handle.flush()
 
-stderr_lock = threading.Lock()
-def err(s):
-    stdout_lock.acquire()
-    stderr.write(s)
-    stderr.write('\n')
-    stderr.flush()
-    stdout_lock.release()
+def write(s, device='~~~'):
+    if s:
+        _write(stdout, s, device)
+
+def error(s, device='~~~'):
+    if s:
+        _write(stderr, s, device)
 
     
 class nRFMultiLogger(object):
@@ -38,15 +44,15 @@ class nRFMultiLogger(object):
 
         if not devices:
             self._devices = [dev.decode('utf-8') for dev in subprocess.check_output(["nrfjprog", "-i"]).splitlines()]
-
         self._nrfs = []
+
     def _rtt_listener(self, device):
         nrf = MultiAPI(DeviceFamily.NRF51)
 
-        # CONTROL_BLOCK_ADDR = 0x200026ec
+        CONTROL_BLOCK_ADDR = 0x20004a78
 
         nrf.open()
-        err('device number: ' + str(device))
+        # error('device number: ' + str(device))
         nrf.connect_to_emu_with_snr(int(device), 8000)
         nrf.sys_reset()
         nrf.go()
@@ -59,80 +65,40 @@ class nRFMultiLogger(object):
         # print("Device %u %s"%(int(device), str()))
 
         if not nrf.rtt_is_control_block_found():
-            err('Could not find control block for devie {}.'.format(device))
+            error('Could not find control block for devie {}.'.format(device))
             return;
 
-        try:
-            # print('starting device ' + device)
-            while True:
-                try:
-                    ret = nrf.rtt_read(0, 1024)
+        write('starting device', device)
+        while True:
+            try:
+                ret = nrf.rtt_read(0, 1024)
+            except Exception as e:
+                error("Got exception: " + str(e))
+                nrf.recover()
+                continue
 
-                    if ret == '':
-                        continue
+            if not ret:
+                continue
 
-                    if type(ret) == int:
-                        err("Error: bad data from device")
-                        continue
-
-                    for s in ret.split('\n'):
-                        try:
-                            level = "3"
-                            timestamp, filename, line, msg = map(lambda s: s.strip(), s.split(","))
-                        except Exception as e:
-                            if s is "":
-                                continue
-                            err(e)
-                            err(s, s.split(";"))
-                            continue
-
-                        msg = msg.replace(MSG_DELIM, MSG_DELIM_REPLACE).replace("\n", " ").strip()
-                        f = MSG_DELIM.join([device, timestamp, filename + ':' + line, msg])
-                        write(f)
-                        
-                except Exception as e:
-                    err("Got exception: " + str(e))
-                    nrf.recover()
-                    if not nrf.is_connected_to_device():
-                        # ??
-                        err('not connected to device')
-
-        except Exception as e:
-            err("An error occured during printing: " + e.message)
+            split = ret.strip().split('\n')
+            write(split[0], device)
+            for line in split[1:]:
+                # Skip only whitespace, but print with whitespace
+                if line.strip():
+                    write('\t' + line, device)
 
         nrf.rtt_stop()
         nrf.disconnect_from_emu()
         nrf.close()
-
-    def write(self, device, msg):
-        if int(device) >= len(self._nrfs) or not len(msg):
-            err("Invalid input: " + ret)
-            return
-        
-        try:
-            self._nrfs[int(device)].rtt_write(0, msg)
-
-        except Exception as e:
-            for nrf in self._nrfs:
-                nrf.rtt_stop()
-                nrf.disconnect_from_emu()
-                nrf.close()
-            err("An error occured while taking input: " + str(e))
     
-    def start(self, cmd_line_mode=False):
+    def start(self):
         threads = []
 
-        idx = 0
         for device in self._devices:
-            device_id = 'SNR' + device + ": " + str(idx)
-            err(device_id)
-
-            thread = threading.Thread(target=self._rtt_listener,
-                                      args=(device,))
+            thread = threading.Thread(target=self._rtt_listener, args=(device,))
             thread.daemon = True
             thread.start()
             threads.append(thread)
-            idx += 1
 
         time.sleep(2.1)
         for t in threads:
