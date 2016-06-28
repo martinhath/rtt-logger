@@ -31,7 +31,3 @@ function cleanup() {
 }
 
 process.on('SIGINT', cleanup);
-
-setTimeout(() => {
-    rttLogger.kill()
-}, 1000);
