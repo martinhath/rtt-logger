@@ -7,6 +7,8 @@ import intelhex
 from pynrfjprog.API import DeviceFamily
 from pynrfjprog.MultiAPI import MultiAPI
 
+BIN_FILE_PATH = 'test/fw-testing.bin'
+
 class Test(unittest.TestCase):
 
     def __init__(self, testname, device):
@@ -16,7 +18,7 @@ class Test(unittest.TestCase):
         nrf.open()
         nrf.connect_to_emu_with_snr(int(device))
 
-        binfile = open('test/fw-testing.bin', 'rb').read()
+        binfile = open(BIN_FILE_PATH , 'rb').read()
         bytes = binfile
 
         nrf.recover()
@@ -50,7 +52,7 @@ class Test(unittest.TestCase):
 
 if __name__ == '__main__':
     hexfile = intelhex.IntelHex('test/fw-testing.hex')
-    hexfile.tofile('test/fw-testing.bin', format='bin')
+    hexfile.tofile(BIN_FILE_PATH, format='bin')
 
     devices = [dev.decode('utf-8') for dev in subprocess.check_output(["nrfjprog", "-i"]).splitlines()]
 

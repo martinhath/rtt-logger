@@ -42,20 +42,20 @@ class nRFMultiLogger(object):
     def __init__(self, devices=[]):
 
         if not devices:
-            self._devices = [dev.decode('utf-8') for dev in subprocess.check_output(["nrfjprog", "-i"]).splitlines()]
+            nrf = MultiAPI(DeviceFamily.NRF51)
+            nrf.open()
+            devices = nrf.enum_emu_snr()
+            nrf.close()
+            self._devices = map(str, devices)
         self._nrfs = []
 
     def _rtt_listener(self, device):
         nrf = MultiAPI(DeviceFamily.NRF51)
 
-        CONTROL_BLOCK_ADDR = 0x20004a78
-
         nrf.open()
-        # error('device number: ' + str(device))
         nrf.connect_to_emu_with_snr(int(device), 8000)
-        nrf.sys_reset()
-        nrf.go()
-        # nrf.rtt_set_control_block_address(CONTROL_BLOCK_ADDR)
+        # nrf.sys_reset()
+        # nrf.go()
         nrf.rtt_start()
         time.sleep(1.1)
 
