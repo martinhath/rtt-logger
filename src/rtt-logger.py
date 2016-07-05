@@ -1,7 +1,6 @@
 import time
 import subprocess
 import threading
-import queue
 from sys import exit, argv
 import getopt
 from pynrfjprog.API import *
@@ -95,24 +94,20 @@ class nRFMultiLogger(object):
         thread = threading.current_thread()
         self.threads.remove(thread)
         self._devices.remove(device)
-        print('remove ' + str(thread))
 
     def find_devices(self):
         while True:
-            print('looking for devices ...')
             nrf = MultiAPI(DeviceFamily.NRF51)
             nrf.open()
             devices = map(str, nrf.enum_emu_snr() or [])
             nrf.close()
             for device in devices:
                 if device not in self._devices:
-                    print('found device ' + str(device))
                     thread = threading.Thread(target=self._rtt_listener, args=(device,))
                     thread.daemon = True
                     thread.start()
                     self.threads.append(thread)
                     self._devices.append(device)
-            print(list(map(str, self.threads)))
             time.sleep(DEVICE_SEARCH_INTERVAL)
 
     
@@ -129,11 +124,8 @@ class nRFMultiLogger(object):
             thread.start()
             self.threads.append(thread)
 
-        time.sleep(2.1)
-
         # never quit :)
         device_searcher.join()
-
 
 if __name__ == "__main__":
     from multiprocessing import freeze_support
