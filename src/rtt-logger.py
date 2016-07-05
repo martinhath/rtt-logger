@@ -1,7 +1,8 @@
 import time
 import subprocess
 import threading
-from sys import exit
+from sys import exit, argv
+import getopt
 from pynrfjprog.API import *
 from pynrfjprog.MultiAPI import *
 
@@ -39,7 +40,7 @@ def error(s, device='~~~'):
     
 class nRFMultiLogger(object):
 
-    def __init__(self, devices=[]):
+    def __init__(self, devices=[], reset=False):
 
         if not devices:
             nrf = MultiAPI(DeviceFamily.NRF51)
@@ -48,14 +49,16 @@ class nRFMultiLogger(object):
             nrf.close()
             self._devices = map(str, devices)
         self._nrfs = []
+        self.reset = reset
 
     def _rtt_listener(self, device):
         nrf = MultiAPI(DeviceFamily.NRF51)
 
         nrf.open()
         nrf.connect_to_emu_with_snr(int(device), 8000)
-        # nrf.sys_reset()
-        # nrf.go()
+        if self.reset:
+            nrf.sys_reset()
+            nrf.go()
         nrf.rtt_start()
         time.sleep(1.1)
 
@@ -105,5 +108,16 @@ class nRFMultiLogger(object):
 if __name__ == "__main__":
     from multiprocessing import freeze_support
     freeze_support()
-    multilog = nRFMultiLogger()
+    try:
+        opts, args = getopt.getopt(argv[1:], '', ['reset'])
+    except getopt.GetoptError as err:
+        print(str(err))
+        exit(2)
+
+    reset = False
+    for (opt, _) in opts:
+        if opt == '--reset':
+            reset = True
+
+    multilog = nRFMultiLogger(reset=reset)
     multilog.start()
