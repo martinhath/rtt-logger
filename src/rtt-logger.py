@@ -1,6 +1,7 @@
 import time
 import subprocess
 import threading
+import queue
 from sys import exit, argv
 import getopt
 from pynrfjprog.API import *
@@ -13,6 +14,9 @@ MSG_DELIM = "\t"
 # in case the delimiter is included in the actual message,
 # replace it with this one
 MSG_DELIM_REPLACE = "\\t"
+
+# Seconds to wait when looking for devices
+DEVICE_SEARCH_INTERVAL = 5
 
 locks = {}
 def _write(handle, s, device):
@@ -37,17 +41,14 @@ def error(s, device='~~~'):
     if s:
         _write(stderr, s, device)
 
-    
 class nRFMultiLogger(object):
 
     def __init__(self, devices=[], reset=False):
 
-        if not devices:
-            nrf = MultiAPI(DeviceFamily.NRF51)
-            nrf.open()
-            devices = nrf.enum_emu_snr()
-            nrf.close()
-            self._devices = map(str, devices)
+        self._devices = []
+        for device in devices:
+            self._devices.append(device)
+
         self._nrfs = []
         self.reset = reset
 
@@ -74,8 +75,8 @@ class nRFMultiLogger(object):
                 ret = nrf.rtt_read(0, 1024)
             except Exception as e:
                 error("Got exception: " + str(e))
-                nrf.recover()
-                continue
+                break;
+                
 
             if not ret:
                 continue
@@ -90,19 +91,48 @@ class nRFMultiLogger(object):
         nrf.rtt_stop()
         nrf.disconnect_from_emu()
         nrf.close()
+
+        thread = threading.current_thread()
+        self.threads.remove(thread)
+        self._devices.remove(device)
+        print('remove ' + str(thread))
+
+    def find_devices(self):
+        while True:
+            print('looking for devices ...')
+            nrf = MultiAPI(DeviceFamily.NRF51)
+            nrf.open()
+            devices = map(str, nrf.enum_emu_snr() or [])
+            nrf.close()
+            for device in devices:
+                if device not in self._devices:
+                    print('found device ' + str(device))
+                    thread = threading.Thread(target=self._rtt_listener, args=(device,))
+                    thread.daemon = True
+                    thread.start()
+                    self.threads.append(thread)
+                    self._devices.append(device)
+            print(list(map(str, self.threads)))
+            time.sleep(DEVICE_SEARCH_INTERVAL)
+
     
     def start(self):
-        threads = []
+        self.threads = []
+
+        device_searcher = threading.Thread(target=self.find_devices)
+        device_searcher.daemon = True
+        device_searcher.start()
 
         for device in self._devices:
             thread = threading.Thread(target=self._rtt_listener, args=(device,))
             thread.daemon = True
             thread.start()
-            threads.append(thread)
+            self.threads.append(thread)
 
         time.sleep(2.1)
-        for t in threads:
-            t.join()
+
+        # never quit :)
+        device_searcher.join()
 
 
 if __name__ == "__main__":
