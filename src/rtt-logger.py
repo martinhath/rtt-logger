@@ -52,77 +52,62 @@ class nRFMultiLogger(object):
         self.reset = reset
 
     def _rtt_listener(self, device):
-        nrf = MultiAPI(DeviceFamily.NRF51)
+        with MultiAPI(DeviceFamily.NRF51) as nrf:
+            nrf.connect_to_emu_with_snr(int(device), 8000)
+            if self.reset:
+                nrf.sys_reset()
+                nrf.go()
+            nrf.rtt_start()
+            time.sleep(1.1)
 
-        nrf.open()
-        nrf.connect_to_emu_with_snr(int(device), 8000)
-        if self.reset:
-            nrf.sys_reset()
-            nrf.go()
-        nrf.rtt_start()
-        time.sleep(1.1)
+            self._nrfs.append(nrf)
 
-        self._nrfs.append(nrf)
+            if not nrf.rtt_is_control_block_found():
+                error('Could not find control block for devie {}.'.format(device))
+                return;
 
-        if not nrf.rtt_is_control_block_found():
-            error('Could not find control block for devie {}.'.format(device))
-            return;
+            while True:
+                try:
+                    ret = nrf.rtt_read(0, 1024)
+                except Exception as e:
+                    error("Got exception: " + str(e))
+                    break;
 
-        write('starting device', device)
-        while True:
-            try:
-                ret = nrf.rtt_read(0, 1024)
-            except Exception as e:
-                error("Got exception: " + str(e))
-                break;
-                
+                if not ret:
+                    continue
 
-            if not ret:
-                continue
+                split = ret.strip().split('\n')
+                write(split[0], device)
+                for line in split[1:]:
+                    # Skip only whitespace, but print with whitespace
+                    if line.strip():
+                        write('\t' + line, device)
 
-            split = ret.strip().split('\n')
-            write(split[0], device)
-            for line in split[1:]:
-                # Skip only whitespace, but print with whitespace
-                if line.strip():
-                    write('\t' + line, device)
-
-        nrf.rtt_stop()
-        nrf.disconnect_from_emu()
-        nrf.close()
+            nrf.rtt_stop()
+            nrf.disconnect_from_emu()
 
         thread = threading.current_thread()
         self.threads.remove(thread)
         self._devices.remove(device)
 
     def find_devices(self):
-        while True:
-            nrf = MultiAPI(DeviceFamily.NRF51)
-            nrf.open()
-            devices = map(str, nrf.enum_emu_snr() or [])
-            nrf.close()
-            for device in devices:
-                if device not in self._devices:
-                    thread = threading.Thread(target=self._rtt_listener, args=(device,))
-                    thread.daemon = True
-                    thread.start()
-                    self.threads.append(thread)
-                    self._devices.append(device)
-            time.sleep(DEVICE_SEARCH_INTERVAL)
+        with MultiAPI(DeviceFamily.NRF51) as nrf:
+            while True:
+                devices = map(str, nrf.enum_emu_snr() or [])
+                for device in devices:
+                    if device not in self._devices:
+                        thread = threading.Thread(target=self._rtt_listener, args=(device,))
+                        thread.start()
+                        self.threads.append(thread)
+                        self._devices.append(device)
+                time.sleep(DEVICE_SEARCH_INTERVAL)
 
-    
     def start(self):
         self.threads = []
 
         device_searcher = threading.Thread(target=self.find_devices)
         device_searcher.daemon = True
         device_searcher.start()
-
-        for device in self._devices:
-            thread = threading.Thread(target=self._rtt_listener, args=(device,))
-            thread.daemon = True
-            thread.start()
-            self.threads.append(thread)
 
         # never quit :)
         device_searcher.join()
