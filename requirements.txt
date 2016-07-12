@@ -1,3 +1,2 @@
 -e git+https://github.com/NordicSemiconductor/pynrfjprog.git@aab72c2140c50599ad261236adac09600d1e3b32#egg=pynrfjprog
 intelhex
-pyinstaller
