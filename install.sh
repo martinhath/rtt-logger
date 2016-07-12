@@ -1,11 +1,16 @@
 #!/bin/bash
-DIR=`dirname $0`
+
 # Where pyinstaller puts the bundled executable
 output_file="dist/rtt-logger"
 # Where we want to put the executable
 bin_dir="bin"
 
-echo "DIR="$DIR
+case "$(uname -s)" in
+  Darwin) platform=osx ;;
+  Linux) platform=linux ;;
+  *) echo 'Not able to detect platform, quitting.'
+    exit -1 ;;
+esac
 
 if !hash pip 2>/dev/null; then
   echo "You need to have 'pip' installed."
@@ -14,10 +19,10 @@ fi
 
 if hash virtualenv 2>/dev/null; then
   # Set up virtualenv, unless it is already set up.
-  if [[ ! -a $DIR/venv ]]; then
-    virtualenv $DIR/venv
+  if [[ ! -a venv ]]; then
+    virtualenv venv >/dev/null
   fi
-  source $DIR/venv/bin/activate
+  source venv/bin/activate
 else
   # Prompt the user for installing all dependencies globally.
   read -p "Did not find 'virtualenv'. Install dependencies globaly? [y/n]" yn
@@ -27,13 +32,11 @@ else
   esac
 fi
 
-pip install -r $DIR/requirements.txt
+pip install -r requirements.txt >/dev/null
 
-pyinstaller -F $DIR/src/rtt-logger.py
-
-if [[ ! -a $DIR/$bin_dir ]]; then
-  mkdir $DIR/$bin_dir
+if [[ ! -a $bin_dir ]]; then
+  mkdir $bin_dir
 fi
 
 # Overwrite file, or should we check and prompt?
-mv $DIR/$output_file $DIR/$bin_dir/
+pyinstaller -F src/rtt-logger.py --name rtt-logger-$platform --log-level ERROR
