@@ -1,16 +1,15 @@
 #!/bin/bash
 
-# Where pyinstaller puts the bundled executable
-output_file="dist/rtt-logger"
-# Where we want to put the executable
-bin_dir="bin"
-
 case "$(uname -s)" in
   Darwin) platform=osx ;;
   Linux) platform=linux ;;
   *) echo 'Not able to detect platform, quitting.'
     exit -1 ;;
 esac
+
+# Where we want to put the executable
+bin_dir="bin"
+bin_name=rtt-logger-$platform
 
 if !hash pip 2>/dev/null; then
   echo "You need to have 'pip' installed."
@@ -39,4 +38,5 @@ if [[ ! -a $bin_dir ]]; then
 fi
 
 # Overwrite file, or should we check and prompt?
-pyinstaller -F src/rtt-logger.py --name rtt-logger-$platform --log-level ERROR
+pyinstaller -F src/rtt-logger.py --name $bin_name --log-level ERROR
+mv dist/$bin_name bin/
