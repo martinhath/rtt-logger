@@ -1,12 +1,13 @@
-import time
+from sys import exit, argv, stdout, stderr
+import getopt
+import signal
 import subprocess
 import threading
-from sys import exit, argv
-import getopt
+import time
+
 from pynrfjprog.API import *
 from pynrfjprog.MultiAPI import *
 
-from sys import stdout, stderr
 
 # put this in between the fields when outputting a message
 MSG_DELIM = "\t"
@@ -40,16 +41,17 @@ def error(s, device='~~~'):
     if s:
         _write(stderr, s, device)
 
+
 class nRFMultiLogger(object):
 
     def __init__(self, devices=[], reset=False):
-
         self._devices = []
         for device in devices:
             self._devices.append(device)
 
-        self._nrfs = []
         self.reset = reset
+        self._run = True;
+        self.threads = []
 
     def _rtt_listener(self, device):
         with MultiAPI(DeviceFamily.NRF51) as nrf:
@@ -60,28 +62,26 @@ class nRFMultiLogger(object):
             nrf.rtt_start()
             time.sleep(1.1)
 
-            self._nrfs.append(nrf)
-
+            curr_thread = threading.current_thread()
             if not nrf.rtt_is_control_block_found():
                 error('Could not find control block for devie {}.'.format(device))
-                return;
+            else:
+                while self._run:
+                    try:
+                        ret = nrf.rtt_read(0, 1024)
+                    except Exception as e:
+                        error("Got exception: " + str(e))
+                        break;
 
-            while True:
-                try:
-                    ret = nrf.rtt_read(0, 1024)
-                except Exception as e:
-                    error("Got exception: " + str(e))
-                    break;
+                    if not ret:
+                        time.sleep(1.0)
+                        continue
 
-                if not ret:
-                    continue
-
-                split = ret.strip().split('\n')
-                write(split[0], device)
-                for line in split[1:]:
-                    # Skip only whitespace, but print with whitespace
-                    if line.strip():
-                        write('\t' + line, device)
+                    write(split[0], device)
+                    for line in split[1:]:
+                        # Skip only whitespace, but print with whitespace
+                        if line.strip():
+                            write('\t' + line, device)
 
             nrf.rtt_stop()
             nrf.disconnect_from_emu()
@@ -91,26 +91,34 @@ class nRFMultiLogger(object):
         self._devices.remove(device)
 
     def find_devices(self):
+        curr_thread= threading.current_thread()
         with MultiAPI(DeviceFamily.NRF51) as nrf:
-            while True:
+            # need to connect on linux, or open() will freeze
+            try:
+                nrf.connect_to_emu_without_snr()
+            except APIError:
+                # if no devices are connected
+                pass
+            while self._run:
                 devices = map(str, nrf.enum_emu_snr() or [])
                 for device in devices:
                     if device not in self._devices:
+                        pass
                         thread = threading.Thread(target=self._rtt_listener, args=(device,))
+                        thread.daemon = True
                         thread.start()
                         self.threads.append(thread)
                         self._devices.append(device)
                 time.sleep(DEVICE_SEARCH_INTERVAL)
 
     def start(self):
-        self.threads = []
+        self.find_devices()
+        for thread in self.threads:
+            thread.join()
 
-        device_searcher = threading.Thread(target=self.find_devices)
-        device_searcher.daemon = True
-        device_searcher.start()
+    def stop(self):
+        self._run = False
 
-        # never quit :)
-        device_searcher.join()
 
 if __name__ == "__main__":
     from multiprocessing import freeze_support
@@ -127,4 +135,5 @@ if __name__ == "__main__":
             reset = True
 
     multilog = nRFMultiLogger(reset=reset)
+    signal.signal(signal.SIGINT, lambda sig, frame: multilog.stop())
     multilog.start()
