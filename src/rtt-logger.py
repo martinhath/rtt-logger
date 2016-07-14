@@ -71,6 +71,7 @@ class nRFMultiLogger(object):
                         time.sleep(1.0)
                         continue
 
+                    split = ret.strip().split('\n')
                     write(split[0], device)
                     for line in split[1:]:
                         # Skip only whitespace, but print with whitespace
