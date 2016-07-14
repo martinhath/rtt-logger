@@ -4,7 +4,7 @@ REM Assumes we are running this script on Windows.
 
 SET bin_dir=bin\
 SET bin_name=rtt-logger
-SET python_main=src/rtt-logger.py
+SET python_main=src\rtt-logger.py
 
 REM TODO: Check Python version, pip, and set up virtual environment.
 
