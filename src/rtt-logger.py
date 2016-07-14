@@ -9,12 +9,6 @@ from pynrfjprog.API import *
 from pynrfjprog.MultiAPI import *
 
 
-# put this in between the fields when outputting a message
-MSG_DELIM = "\t"
-# in case the delimiter is included in the actual message,
-# replace it with this one
-MSG_DELIM_REPLACE = "\\t"
-
 # Seconds to wait when looking for devices
 DEVICE_SEARCH_INTERVAL = 5
 
