@@ -60,6 +60,7 @@ class nRFMultiLogger(object):
             if not nrf.rtt_is_control_block_found():
                 error('Could not find control block for devie {}.'.format(device))
             else:
+                write('Connected to ' + device)
                 while self._run:
                     try:
                         ret = nrf.rtt_read(0, 1024)
@@ -77,6 +78,7 @@ class nRFMultiLogger(object):
                         # Skip only whitespace, but print with whitespace
                         if line.strip():
                             write('\t' + line, device)
+                write('Disconnected from ' + device)
 
             nrf.rtt_stop()
             nrf.disconnect_from_emu()
@@ -98,7 +100,6 @@ class nRFMultiLogger(object):
                 devices = map(str, nrf.enum_emu_snr() or [])
                 for device in devices:
                     if device not in self._devices:
-                        pass
                         thread = threading.Thread(target=self._rtt_listener, args=(device,))
                         thread.daemon = True
                         thread.start()
