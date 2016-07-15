@@ -99,6 +99,9 @@ class RTTLogger(object):
             thread.start()
             self.threads.append(thread)
 
+        while not self.event.is_set():
+            time.sleep(1)
+
 
 if __name__ == "__main__":
     from multiprocessing import freeze_support
@@ -115,7 +118,7 @@ if __name__ == "__main__":
             reset = True
 
     event = threading.Event()
-    signal.signal(signal.SIGINT, lambda s,f: event.set())
+    signal.signal(signal.SIGINT, lambda s, f: event.set())
 
     logger = RTTLogger(reset=reset, event=event)
     logger.start()
