@@ -39,7 +39,7 @@ rttLogger.on('close', code => {
 
 function cleanup() {
     console.log('Exiting rttLogger')
-    rttLogger.kill('SIGINT')
+    rttLogger.kill()
 }
 
 process.on('SIGINT', cleanup);

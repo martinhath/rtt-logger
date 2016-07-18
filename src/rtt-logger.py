@@ -118,7 +118,13 @@ if __name__ == "__main__":
             reset = True
 
     event = threading.Event()
-    signal.signal(signal.SIGINT, lambda s, f: event.set())
+    def sint(s, g):
+        event.set()
+    def sterm(s, g):
+        event.set()
+        sys.exit(0)
+    signal.signal(signal.SIGINT,  sint)
+    signal.signal(signal.SIGTERM, sterm)
 
     logger = RTTLogger(reset=reset, event=event)
     logger.start()
