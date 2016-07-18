@@ -79,12 +79,10 @@ class RTTLogger(object):
 
     def get_devices(self):
         with MultiAPI(DeviceFamily.NRF51) as nrf:
-            try:
-                nrf.connect_to_emu_without_snr()
-            except:
-                # connect..() raises if there are no devices connected
-                return []
             devices = nrf.enum_emu_snr()
+            if not devices:
+                return []
+            nrf.connect_to_emu_without_snr()
             if type(devices) != list:
                 raise Exception('enum_emu_snr didn\'t return a list')
             nrf.disconnect_from_emu()
@@ -92,6 +90,8 @@ class RTTLogger(object):
 
     def start(self):
         devices = self.get_devices()
+        if not devices:
+            return
 
         self.threads = []
         for device in devices:
