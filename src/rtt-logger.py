@@ -84,6 +84,8 @@ class RTTLogger(object):
                 return []
             if type(devices) != list:
                 raise Exception('enum_emu_snr didn\'t return a list')
+            nrf.connect_to_emu_with_snr(devices[0])
+            nrf.disconnect_from_emu()
         return list(map(str, devices))
 
     def start(self):
